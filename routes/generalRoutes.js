@@ -1,11 +1,16 @@
 const express = require("express");
 const router = express.Router();
 
-const AccountController = require("../controllers/accountController");
+const AccessController = require("../controllers/accessController");
+const SearchController = require("../controllers/searchController");
 
-const accountController = new AccountController();
+const searchController = new SearchController();
+const accessController = new AccessController();
 
-router.post("/register", accountController.register);
-router.post("/login", accountController.login);
+
+router.post("/general/register", accessController.register);
+router.post("/general/login", accessController.login);
+router.get("/general/search", searchController.search); 
+
 
 module.exports = router;
