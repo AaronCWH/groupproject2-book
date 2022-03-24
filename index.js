@@ -1,5 +1,4 @@
 const { sequelize, testConnection, Users, Index, Swap, Reviews, Genres } = require("./connect.js");
-const { protectedPermission, adminPermission } = require("./authentication/user-permissions");
 
 const express = require('express');
 const app = express();
@@ -10,9 +9,19 @@ const cookieParser = require('cookie-parser');
 const generalRoutes = require("./routes/general-routes.js");
 const protectedRoutes = require("./routes/protected-routes.js");
 
+const whitelist = ["http://localhost:3000", process.env.ORIGIN];
+
 const corsOptions = {
-  origin: "http://localhost:3000",
-  credentials: true,
+  // Configures the Access-Control-Allow-Origin CORS header to specific origin
+  // origin: process.env.ORIGIN,
+  credentials: true, // Configures the Access-Control-Allow-Credentials CORS header. Set to true to pass the header, otherwise it is omitted.
+  origin: function (origin, callback) {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
 }
 
 // Test connections 
@@ -21,16 +30,18 @@ testConnection();
 // Parsing JSON
 app.use(express.json());
 
+// enable cors for all routes
 app.use(cors(corsOptions));
 
 // Parsing Cookies
 app.use(cookieParser());
 
 // Adding middleware to all protected routes
-const accessJwt = require("./authentication/auth-access-jwt");
-const refreshJwt = require("./authentication/auth-refresh-jwt")
+const { verifyJwtAccess } = require("./authentication/auth-access-jwt");
+const { verifyJwtRefresh } = require("./authentication/auth-refresh-jwt");
+const { protectedPermission, adminPermission } = require("./authentication/user-permissions");
 
-app.use('/protected', accessJwt, refreshJwt, protectedPermission);
+app.use('/protected', verifyJwtAccess, verifyJwtRefresh, protectedPermission);
 app.use('/protected/admin', adminPermission);
 
 // Main Page

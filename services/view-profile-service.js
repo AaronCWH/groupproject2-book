@@ -1,38 +1,47 @@
 const { Users, Swap, Reviews } = require("../connect.js");
 
-const { serviceErrorCatch } = require("../constants/error-catch");
+const Constants = require("../constants/index");
+const { errorCatch, infoLog } = require("../constants/error-catch");
+const { fileNameFormat, fnNameFormat } = require("./service-logger/log-format");
+const serviceName = fileNameFormat(__filename, __dirname);
 
+
+
+// ----------------------------------------- PASSED TO ACCOUNT CONTROLLER
 module.exports = {
+    
     viewProfile: async (userId) => {
-        let result = {
-            message: null,
-            status: null,
-            data: null,
-        }
 
+        let fnName = fnNameFormat();
+
+        // use user id to find user in user table
         const user = await Users.findByPk(userId);
 
-        serviceErrorCatch(result, !user, Constants.USER_NOTFOUND, 404);
+        // error catch - user is not found
+        if (!user) {
+            let response = errorCatch(404, Constants.USER_NOTFOUND, serviceName, fnName);
+            return response;
+        }
 
-        // if (!user) {
-        //     result.message = "User not found, try logging in again.";
-        //     result.status = 404;
-        //     return result;
-        // }
-
+        // use user id to find user's reviews in review table
         const reviews = await Reviews.findAll({ where: { userId: userId }, include: "Index" });
+
+        // use user id to find user's uploaded books in swap table
         const swap = await Swap.findAll({ where: { userId: userId }, include: "Index" });
+
+        // use user id to find user's purchased books in swap table
         const purchaseHistory = await Swap.findAll({ where: { purchasedId: userId }, include: "Index" });
 
-        result.data = {
+        // infolog
+        let response = infoLog("Welcome to your profile!", serviceName, fnName);
+
+        response.data = {
             user: user,
             reviews: reviews,
             swap: swap,
             purchaseHistory: purchaseHistory,
         }
 
-        result.status = 200;
-        result.message = "Welcome to your profile!";
-        return result;
+        return response;
     }
 }

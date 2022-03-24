@@ -1,9 +1,19 @@
 const { Index, Swap, Users } = require("../connect.js");
 const Constants = require("../constants/index.js");
 
+const { formatLogMsg, fileNameFormat, fnNameFormat }= require("./service-logger/log-format");
+
+const serviceName = fileNameFormat( __filename, __dirname );
+
+const priceOfBook = 1; // currently client side not uploading price data.
+
+let obtainedId; // var for assigned IndexId
+
 module.exports = {
 
-    uploadbook: async (userid, booktitle, bookauthor, bookyear, bookgenre, usercomments) => {
+    uploadbook: async (userid, booktitle, bookauthor, bookyear, bookgenre, usercomments, bookcover) => {
+
+        let fnName = fnNameFormat();
 
         let result = {
             message: null,
@@ -18,171 +28,356 @@ module.exports = {
         if (!user) {
             result.message = `User ID ${userid} is not found. Please register an account before uploading a book for swap!`;
             result.status = 404;
+
+            formatLogMsg({
+                level: Constants.LEVEL_ERROR,
+                serviceName: serviceName,
+                fnName: fnName,
+                text: result.message
+            });
+
             return result;
-        } console.log("User Attempting to upload book for swap, user is: ", user);
+        }
 
-        //If necessary parameters are given, findorcreate index.
+        result.message = `User Attempting to upload book for swap, user id: ${user.userId} `, 
 
-        const [library, created] = await Index.findOrCreate({
-            where: {
-                title: booktitle,
-                author: bookauthor
-            },
-            defaults: {
-                title: booktitle,
-                author: bookauthor,
-                genreId: bookgenre,
-                year: bookyear
-            }
+        formatLogMsg({
+            level: Constants.LEVEL_INFO,
+            serviceName: serviceName,
+            fnName: fnName,
+            text: result.message
         });
 
-        // If index was created, add it to swap, give userId point.
-        if (created) {
+        //If necessary parameters are given, findorcreate index.
+        try {
 
-            console.log(`User ${userid} requested to add book titled ${booktitle}, by author ${bookauthor} to library but it does not exist. Adding to index database...`);
+            const [library, created] = await Index.findOrCreate({
+                where: {
+                    title: booktitle,
+                    author: bookauthor
+                },
+                defaults: {
+                    title: booktitle,
+                    author: bookauthor,
+                    genreId: bookgenre,
+                    // year: bookyear,
+                    // imageURL: bookcover
+                }
+            });
 
-            try {
+            obtainedId = library.indexId;
 
-                library.title = booktitle;
-                library.author = bookauthor;
-                library.genreId = bookgenre;
-                library.year = bookyear;
-                const newIndex = await library.save();
-                console.log("New Index Request Created: ", newIndex instanceof Index);
-                console.log("Book details successfully added to index database.");
-                console.log("New Index added to Library, index id:", library.dataValues.indexId);
+            // If index already exists, fill up remaining info if avail.
+            if (!created) {
 
-            } catch (error) {
+                result.message = `User ${userid} requested to add book to library, existing Index is ${obtainedId}...`
+    
+                formatLogMsg({
+                    level: Constants.LEVEL_INFO,
+                    serviceName: serviceName,
+                    fnName: fnName,
+                    text: result.message
+                });
 
-                console.log('User attempted to access library, failed. Error: ', error);
-                result.message = "Failed to access library database. Please try again later.";
-                result.status = 500;
-                return result;
+                try {
 
-            }
+                    if (library.year === null && bookyear !== null) {
+                        library.year = bookyear;
+                    };
+                    if (library.genreId === null && bookgenre !== null) {
+                        library.genreId = bookgenre;
+                    };
+                    if (library.imageURL === null && bookcover !== null) {
+                        library.imageURL = bookcover;
+                    };
 
+                    await Index.update(
+                        {
+                            year: library.year,
+                            genreId: library.genreId,
+                            imageURL: library.imageURL
+                        },
+                        { where: { indexId: obtainedId } }
+                    );
+    
+                    result.status = 200;
+                    result.message = `Updated Index id: ${obtainedId}, with year: ${library.year}, with genreId: ${library.genreId} by ${library.imageURL}`
+    
+                    formatLogMsg({
+                        level: Constants.LEVEL_INFO,
+                        serviceName: serviceName,
+                        fnName: fnName,
+                        text: result.message
+                    });
+
+                } catch(error) {
+
+                    result.message = `Failed to update new index in database. Error: ${error} Please try again later.`;
+                    result.status = 500;
+    
+                    formatLogMsg({
+                        level: Constants.LEVEL_ERROR,
+                        serviceName: serviceName,
+                        fnName: fnName,
+                        text: result.message
+                    });
+    
+                    // return result; no need return as update attempt is optional
+                };
+
+            };
+    
+            // If index was created, fill up remaining info.
+            if (created) {
+    
+                result.message = `User ${userid} requested to add book to library but it does not exist. Adding to index database...`
+    
+                formatLogMsg({
+                    level: Constants.LEVEL_INFO,
+                    serviceName: serviceName,
+                    fnName: fnName,
+                    text: result.message
+                });
+    
+                try {
+    
+                    library.title = booktitle;
+                    library.author = bookauthor;
+                    if (bookgenre !== null) {library.genreId = bookgenre};
+                    if (bookyear !== null) {library.year = bookyear};
+                    if (bookcover !== null) {library.imageURL = bookcover};                
+                    const newIndex = await library.save();
+
+                    obtainedId = newIndex.dataValues.indexId;
+    
+                    result.status = 200;
+                    result.message = `New Index added to Library, index id: ${newIndex.dataValues.indexId}, title: ${newIndex.dataValues.title} by ${newIndex.dataValues.author}`
+    
+                    formatLogMsg({
+                        level: Constants.LEVEL_INFO,
+                        serviceName: serviceName,
+                        fnName: fnName,
+                        text: result.message
+                    });
+    
+                } catch (error) {
+    
+                    result.message = `Failed to create new index in database. Error: ${error} Please try again later.`;
+                    result.status = 500;
+    
+                    formatLogMsg({
+                        level: Constants.LEVEL_ERROR,
+                        serviceName: serviceName,
+                        fnName: fnName,
+                        text: result.message
+                    });
+    
+                    return result;
+                };
+            };
+
+        } catch(error) {
+
+            result.message = `Failed to access index database. Error: ${error} Please try again later.`;
+            result.status = 500;
+
+            formatLogMsg({
+                level: Constants.LEVEL_ERROR,
+                serviceName: serviceName,
+                fnName: fnName,
+                text: result.message
+            });
+
+            return result;
+        };        
+        
+        // add it to swap
+        try {
             const addToSwap = await Swap.create({
                 userId: userid,
-                price: 1,
-                indexId: library.dataValues.indexId,
+                price: priceOfBook,
+                indexId: obtainedId,
                 availability: Constants.AVAIL_YES,
                 comments: usercomments
             });
 
-            console.log(`Swap Request Created: `, addToSwap instanceof Swap);
-            console.log('New Swap ID: ', addToSwap.dataValues.swapId);
+            result.status = 200;
+            result.message = `New Swap Created, Swap ID: ${addToSwap.dataValues.swapId}`
 
-            //if swap id for new swap is created, give points.
-            if (addToSwap.dataValues.swapId !== null) {
+            formatLogMsg({
+                level: Constants.LEVEL_INFO,
+                serviceName: serviceName,
+                fnName: fnName,
+                text: result.message
+            });
 
-                try {
+        } catch (e) {
+            result.message = `User ID ${user.userId} attempted to upload a new swap, failed. Error: ${e}`;
+            result.status = 500;
 
-                    console.log("User current points is ", user.dataValues.points);
-                    console.log("Swap price/point is ", addToSwap.dataValues.price);
+            formatLogMsg({
+                level: Constants.LEVEL_ERROR,
+                serviceName: serviceName,
+                fnName: fnName,
+                text: result.message
+            });
 
-                    const currentPoints = user.dataValues.points
-                    const currentPrice = addToSwap.dataValues.price
-                    const expectedPoints = currentPoints + currentPrice;
+            return result;
+        };
+            
+        //swap id for new swap is created, give points.
+        try {
 
-                    user.dataValues.points += addToSwap.dataValues.price;
+            // console.log("User current points is ", user.dataValues.points);
+            // console.log("Swap price/point is ", addToSwap.dataValues.price);
 
-                    console.log("New User Points should be: ", user.dataValues.points);
-                    const newPoints = user.dataValues.points;
+            const currentPoints = user.dataValues.points;
+            const currentPrice = priceOfBook;
+            const expectedPoints = currentPoints + currentPrice;
 
-                    await Users.update({
-                        points: newPoints
-                    },
-                        {
-                            where: { userId: userid }
-                        });
-                    // await user.save()
-                    console.log("New User Points is now: ", user.dataValues.points);
+            user.dataValues.points += priceOfBook;
 
-                    if (user.dataValues.points !== expectedPoints) {
-                        result.message = "System failed to save new points, please contact an administrator or send us an email."
-                        result.status = 500;
-                    }
+            // console.log("New User Points should be: ", user.dataValues.points);
+            const newPoints = user.dataValues.points;
 
-                    console.log(`${addToSwap.dataValues.price} points successfully added to user ${userid}`);
+            await Users.update({
+                points: newPoints
+            },
+                {
+                    where: { userId: userid }
+                });
 
-                    result.data = addToSwap;
-                    result.status = 200;
-                    result.message = "Book successfully uploaded for swap! You currently have " + user.dataValues.points + " points";
-                    return result;
+            // console.log("New User Points is now: ", user.dataValues.points);
 
-                } catch (error) {
-
-                    console.log('User attempted to upload book to swap, failed. Error: ', error);
-                    result.message = `Failed to add ${addToSwap.dataValues.price} points to your account. Please contact our administrator through email.`
-                    result.status = 500;
-                    return result;
-
-                }
-
-            }
-
-
-        }
-
-        console.log("Book currently exists in index library", library);
-        console.log("Adding book swap request to swap");
-
-        const addToSwap = await Swap.create({
-            userId: userid,
-            price: 1,
-            indexId: library.dataValues.indexId,
-            availability: Constants.AVAIL_YES,
-            comments: usercomments
-        });
-        console.log(`Swap Request Created: `, addToSwap instanceof Swap);
-        console.log('New Swap ID: ', addToSwap.dataValues.swapId);
-
-        //if swap id for new swap is created, give points.
-        if (addToSwap.dataValues.swapId !== null) {
-
-            try {
-
-                console.log("User current points is ", user.dataValues.points);
-                console.log("Swap price/point is ", addToSwap.dataValues.price);
-
-                const currentPoints = user.dataValues.points
-                const currentPrice = addToSwap.dataValues.price
-                const expectedPoints = currentPoints + currentPrice;
-
-                user.dataValues.points += addToSwap.dataValues.price;
-
-                console.log("New User Points should be: ", user.dataValues.points);
-                const newPoints = user.dataValues.points;
-
-                await Users.update({
-                    points: newPoints
-                },
-                    {
-                        where: { userId: userid }
-                    });
-                // await user.save()
-                console.log("New User Points is now: ", user.dataValues.points);
-
-                if (user.dataValues.points !== expectedPoints) {
-                    result.message = "System failed to save new points, please contact an administrator or send us an email."
-                    result.status = 500;
-                }
-
-                console.log(`${addToSwap.dataValues.price} points successfully added to user ${userid}`);
-
-                result.data = addToSwap;
-                result.status = 200;
-                result.message = "Book successfully uploaded for swap! You currently have " + user.dataValues.points + " points";
-                return result;
-
-            } catch (error) {
-
-                console.log('User attempted to upload book to swap, failed. Error: ', error);
-                result.message = `Failed to add ${addToSwap.dataValues.price} points to your account. Please contact our administrator through email.`
+            if (user.dataValues.points !== expectedPoints) {
+                result.message = "System failed to save new points, please contact an administrator or send us an email."
                 result.status = 500;
-                return result;
 
+                formatLogMsg({
+                    level: Constants.LEVEL_ERROR,
+                    serviceName: serviceName,
+                    fnName: fnName,
+                    text: result.message
+                });
+
+                return result;
             }
-        }
+
+            console.log(`${priceOfBook} points successfully added to user ${userid}`);
+
+            result.data = user;
+            result.status = 200;
+            result.message = "Book successfully uploaded for swap! You currently have " + user.dataValues.points + " points";
+
+            formatLogMsg({
+                level: Constants.LEVEL_INFO,
+                serviceName: serviceName,
+                fnName: fnName,
+                text: result.message
+            });
+
+            return result;
+
+        } catch (error) {
+
+            console.log('User attempted to upload book to swap, failed. Error: ', error);
+            result.message = `Failed to add ${priceOfBook} points to your account. Please contact our administrator through email.`
+            result.status = 500;
+
+            formatLogMsg({
+                level: Constants.LEVEL_ERROR,
+                serviceName: serviceName,
+                fnName: fnName,
+                text: result.message
+            });
+
+            return result;
+        };
+        
+
+        // try {
+        //     const addToSwap = await Swap.create({
+        //         userId: userid,
+        //         price: priceOfBook,
+        //         indexId: library.dataValues.indexId,
+        //         availability: Constants.AVAIL_YES,
+        //         comments: usercomments
+        //     });
+            
+        //     result.status = 200;
+        //     result.message = `New Swap Created, ID: ${addToSwap.dataValues.swapId}`;
+
+        //     //if swap id for new swap is created, give points.
+        //     if (addToSwap.dataValues.swapId !== null) {
+
+        //         try {
+
+        //             // console.log("User current points is ", user.dataValues.points);
+        //             // console.log("Swap price/point is ", addToSwap.dataValues.price);
+
+        //             const currentPoints = user.dataValues.points;
+        //             const currentPrice = priceOfBook;
+        //             const expectedPoints = currentPoints + currentPrice;
+
+        //             user.dataValues.points += addToSwap.dataValues.price;
+
+        //             // console.log("New User Points should be: ", user.dataValues.points);
+        //             const newPoints = user.dataValues.points;
+
+        //             await Users.update({
+        //                 points: newPoints
+        //             },
+        //                 {
+        //                     where: { userId: userid }
+        //                 });
+                    
+        //             console.log("New User Points is now: ", user.dataValues.points);
+
+        //             if (user.dataValues.points !== expectedPoints) {
+        //                 result.message = "System failed to save new points, please contact an administrator or send us an email."
+        //                 result.status = 500;
+
+        //                 formatLogMsg({
+        //                     level: Constants.LEVEL_ERROR,
+        //                     serviceName: serviceName,
+        //                     fnName: fnName,
+        //                     text: result.message
+        //                 });
+
+        //                 return result;
+        //             }
+
+        //             result.data = addToSwap;
+        //             result.status = 200;
+        //             result.message = `Book successfully uploaded for swap! User ID ${user.userId} currently has ${user.dataValues.points} points`;
+
+        //             formatLogMsg({
+        //                 level: Constants.LEVEL_INFO,
+        //                 serviceName: serviceName,
+        //                 fnName: fnName,
+        //                 text: result.message
+        //             });
+
+        //             return result;
+
+        //         } catch (error) {
+
+        //             result.message = `Failed to add ${addToSwap.dataValues.price} points to ${user.userId}'s account. Please contact our administrator through email.`
+        //             result.status = 500;
+
+        //             formatLogMsg({
+        //                 level: Constants.LEVEL_ERROR,
+        //                 serviceName: serviceName,
+        //                 fnName: fnName,
+        //                 text: result.message
+        //             });
+                    
+        //             return result;
+
+        //         }
+        //     }
+        // } catch (error) {
+
+        // };
     },
 }

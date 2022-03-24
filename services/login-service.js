@@ -3,75 +3,59 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 const Constants = require("../constants/index.js");
-const { serviceErrorCatch } = require("../constants/error-catch");
+
+const { errorCatch, infoLog } = require("../constants/error-catch");
+const { fileNameFormat, fnNameFormat } = require("./service-logger/log-format");
+const serviceName = fileNameFormat(__filename, __dirname);
 
 const { Users } = require("../connect.js");
 
+
+
+// ----------------------------------------- PASSED TO ACCESS CONTROLLER
 module.exports = {
+    
     login: async (email, password) => {
-        let result = {
-            message: null,
-            status: null,
-            data: null,
+
+        let fnName = fnNameFormat();
+
+        // use email to find matching user in user table
+        const user = await Users.findOne({ where: { email: email } });
+
+        // error catch - if email is invalid
+        if (!user) {
+            let response = errorCatch(400, Constants.EMAIL_INVALID, serviceName, fnName);
+            return response;
         }
 
-        let p = new Promise(async (resolve, reject) => {
-            const user = await Users.findOne({ where: { email: email } });
-            if (user) {
-                resolve(user);
-            } else if (!user) {
-                reject();
-            }
-        })
+        // verify password
+        const passwordVerification = await bcrypt.compare(password, user.password);
 
-        p.then(async (user) => {
-            const passwordVerification = await bcrypt.compare(password, user.password);
-            if (!passwordVerification) {
-                result.message = "You have entered the wrong password.";
-                result.status = 400;
-                return result;
-            }
-        }).catch(() => {
-            result.message = Constants.EMAIL_INVALID;
-            result.status = 400;
-            return result;
-        })
+        // error catch - if password is invalid
+        if (!passwordVerification) {
+            let response = errorCatch(400, Constants.PASSWORD_INVALID, serviceName, fnName);
+            return response;
+        }
 
-        // serviceErrorCatch(result, !user, Constants.EMAIL_INVALID, 400);
-
-        // const passwordVerification = await bcrypt.compare(password, user.password);
-
-        // serviceErrorCatch(result, !passwordVerification, Constants.PASSWORD_INVALID, 400);
-
-        // if (!user) {
-        //     result.message = "You have entered the wrong email.";
-        //     result.status = 400;
-        //     return result;
-        // }
-
-        // const passwordVerification = await bcrypt.compare(password, user.password);
-
-        // if (!passwordVerification) {
-        //     result.message = "You have entered the wrong password.";
-        //     result.status = 400;
-        //     return result;
-        // }
-
+        // user id and username object to be passed into jwt tokens
         const loginData = {
             userId: user.userId,
             username: user.username
         }
 
+        // creating jwt tokens
+        // access and refresh for long term login
         const accessToken = jwt.sign(loginData, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "10m" });
         const refreshToken = jwt.sign(loginData, process.env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
 
-        result.data = {
+        let response = infoLog("Login is successful! Redirecting...", serviceName, fnName);
+
+        response.data = {
             accessToken: accessToken,
             refreshToken: refreshToken,
+            userType: user.type,
         };
 
-        result.status = 200;
-        result.message = "Login is successful! Redirecting...";
-        return result;
+        return response;
     }
 }

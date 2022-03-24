@@ -7,7 +7,6 @@ const WishlistController = require("../controllers/wishlist-controller");
 const AccountController = require("../controllers/account-controller");
 const AdminController = require("../controllers/admin-controller");
 const UploadController = require("../controllers/upload-controller");
-const LogoutController = require("../controllers/logout-controller");
 
 
 const reviewController = new ReviewController();
@@ -16,7 +15,6 @@ const wishlistController = new WishlistController();
 const accountController = new AccountController();
 const adminController = new AdminController();
 const uploadController = new UploadController();
-const logoutController = new LogoutController();
 
 
 router.post("/protected/addReview", reviewController.addReview);
@@ -37,10 +35,6 @@ router.get('/protected', (req, res) => {
     return res.send('Calling on protected route..');
 });
 
-// G1 020322: for testing only.
-router.get('/protected/getusers', wishlistController.getUsers);
-
-
 router.post("/protected/uploadbook", uploadController.uploadbook);
 
 // user account actions
@@ -50,11 +44,15 @@ router.get("/protected/viewprofile", accountController.viewProfile);
 // edit email and/or password
 router.put("/protected/editprofile", accountController.editProfile);
 
-// logout of account
-router.post("/protected/logout", logoutController.logout);
-
 // actions that need admin permissions
+
 // edit user type to USER, ADMIN or BANNED
-router.put("/protected/admin/edituser", adminController.editUserType);
+router.put("/protected/admin/usertype", adminController.userType);
+
+// view all users, returning only safe data
+router.get("/protected/admin/viewusers", adminController.viewUsers);
+
+// search for user
+router.get("/protected/admin/searchuser", adminController.searchUser);
 
 module.exports = router;
