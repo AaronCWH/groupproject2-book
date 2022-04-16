@@ -1,3 +1,5 @@
+Group Project 2 focuses on understanding and application of frontend to backend communication through HTTP requests with Axios through the use of models, controllers, services, routing with user permissions, along with authentication with JWT token.
+
 // --- SQL for Databases ----------------------------------------------------------------------- // 
 
 create table "users" (
