@@ -1,14 +1,12 @@
 const express = require("express");
 const router = express.Router();
 
-const authenticateJwt = require("../authentication/authJwt");
-
-const ReviewController = require("../controllers/reviewController");
-const GrabController = require("../controllers/grabController");
-const WishlistController = require("../controllers/wishlistController");
-
-const AccountController = require("../controllers/accountController");
-const AdminController = require("../controllers/adminController");
+const ReviewController = require("../controllers/review-controller");
+const GrabController = require("../controllers/grab-controller");
+const WishlistController = require("../controllers/wishlist-controller");
+const AccountController = require("../controllers/account-controller");
+const AdminController = require("../controllers/admin-controller");
+const UploadController = require("../controllers/upload-controller");
 
 
 const reviewController = new ReviewController();
@@ -16,9 +14,10 @@ const grabController = new GrabController();
 const wishlistController = new WishlistController();
 const accountController = new AccountController();
 const adminController = new AdminController();
+const uploadController = new UploadController();
 
 
-router.post("/protected/:indexId/addReview", reviewController.addReview);
+router.post("/protected/addReview", reviewController.addReview);
 
 // for grabbing book with credit
 router.post('/protected/grab', grabController.grabBook);
@@ -36,17 +35,24 @@ router.get('/protected', (req, res) => {
     return res.send('Calling on protected route..');
 });
 
-const UploadController = require("../controllers/uploadController");
-
-const uploadController = new UploadController();
-
 router.post("/protected/uploadbook", uploadController.uploadbook);
 
 // user account actions
+// view profile
 router.get("/protected/viewprofile", accountController.viewProfile);
+
+// edit email and/or password
 router.put("/protected/editprofile", accountController.editProfile);
 
 // actions that need admin permissions
-router.put("/protected/admin/edituser", adminController.editUserType);
+
+// edit user type to USER, ADMIN or BANNED
+router.put("/protected/admin/usertype", adminController.userType);
+
+// view all users, returning only safe data
+router.get("/protected/admin/viewusers", adminController.viewUsers);
+
+// search for user
+router.get("/protected/admin/searchuser", adminController.searchUser);
 
 module.exports = router;

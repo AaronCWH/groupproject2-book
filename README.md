@@ -1,43 +1,9 @@
-// --- SQL for Databases ------------------------------------------------------------------------ // 
+# BACKEND
 
-create table "users" (
-user_id serial primary key,
-username varchar (20) unique not null,
-email varchar (50) unique not null,
-password varchar not null,
-points int
-wishlist int[] // array of integers
-);
-
-create table "reviews" (
-review_id serial primary key,
-review varchar (300) not null,
-user_id int not null,
-index_id int not null
-);
-
-create table "index" (
-index_id serial primary key,
-title varchar (50) unique not null,
-author varchar (50) not null,
-genre_id int,
-);
-
-create table "genres" (
-genre_id serial primary key,
-genre varchar (20) not null
-);
-
-create table "swap" (
-swap_id serial primary key,
-price int not null,
-comments varchar (150),
-index_id int not null,
-user_id int not null
-);
-
-create table "carts" (
-cart_id serial primary key,
-user_id int not null,
-swap_id int
-);
+- PostgreSQL database
+- Database deployed on Heroku PostgreSQL
+- Sequelize for object relational mapping
+- Express as our web framework to handle http requests
+- Winston for logging
+- Bcrypt for password hashing
+- JSON web token for keeping user data authenticated at each new http request
